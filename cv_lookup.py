@@ -147,7 +147,7 @@ def get_rates(address):
     print br.response().read()
     return br
 
-address = '3/1 Bellcroft Place Belmont'
+address = '44 Queen Street Auckland'
 results = get_valuation_number(address)
 
 for result in results:
