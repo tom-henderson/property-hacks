@@ -1,0 +1,6 @@
+.DS_Store
+*.pyc
+
+# Only include example secrets.
+/secrets/*
+!/secrets/*-example.py
