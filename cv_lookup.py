@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
+import json
+import urllib
+from time import sleep
+from pprint import pprint
+
 import requests
 import mechanize
 import cookielib
 from bs4 import BeautifulSoup as bs
-import json
-import urllib
+from selenium import webdriver
 
 ILLEGAL_CHARS = ","
 
@@ -46,12 +50,6 @@ def address_search(address):
     url = "http://maps.aucklandcouncil.govt.nz/ArcGIS/rest/services/Applications/ACWebsite/MapServer/3/query"
     json_data = requests.get(url, params=payload).text
     data = json.loads(json_data)
-
-    # for match in data['features']:
-    #     print "Found possible match: {}, {}".format(
-    #         match['attributes']['VALUATIONREF'],
-    #         match['attributes']['FORMATTEDADDRESS']
-    #     )
 
     return [{'vr': match['attributes']['VALUATIONREF'],
             'pa': match['attributes']['FORMATTEDADDRESS']}
@@ -114,38 +112,92 @@ def get_valuation_number(address):
     return address_search(address)
 
 
-def get_rates(address):
-    valuation_number = get_valuation_number(address)
-    url = "http://www.aucklandcouncil.govt.nz/EN/ratesbuildingproperty/ratesvaluations/ratespropertysearch/Pages/yourrates.aspx"
+def valuation_search(address):
+    browser = webdriver.Chrome('/Users/tom/Documents/Github/property-hacks/chromedriver')
 
-    payload = {
-        'vr': valuation_number,
-        'pa': address.replace(ILLEGAL_CHARS, "")
+    address_data = get_valuation_number(address)[0]
+    url = "http://www.aucklandcouncil.govt.nz/"
+    url += "EN/ratesbuildingproperty/ratesvaluations/ratespropertysearch/"
+    url += "Pages/yourrates.aspx?vr={}&pa={}".format(
+        address_data['vr'],
+        address_data['pa'].replace(ILLEGAL_CHARS, "")
+    )
+
+    browser.get(url)
+    data = None
+    while not data:
+        sleep(1)  # Wait for ajax to load
+        try:
+            data = browser.execute_script("return document.getElementById('summaryinforwrapper').innerHTML")
+        except:
+            pass
+
+    browser.quit()
+
+    soup = bs(data)
+
+    result = {
+        'assessment_number': None,
+        'annual_rates': None,
+        'land_value': None,
+        'capital_value': None,
+        'latest_capital_value': None,
+        'latest_land_value': None,
+        'latest_improvement_value': None,
+        'valuation_date': None,
+        'land_area': None,
+        'certificate_of_title_number': None,
+        'legal_description': None,
     }
 
-    result = requests.get(url, params=payload)
-    if result.status_code != 200:
-        return False
+    rows = soup.findAll('div', {"class": "summaryitem"})
+    for row in rows:
+        if len(row.findAll('div')) == 2:
+            title = row.find('div', {"class": "summaryitemtitle"}).text.strip()
+            value = row.find('div', {"class": "summaryitemvalue"}).text.strip()
 
-    br = mechanize.Browser()
-    cj = cookielib.LWPCookieJar()
+            if title == 'Assessment number:':
+                result['assessment_number'] = value
 
-    br.set_cookiejar(cj)
+            elif title == 'Total annual rates (2014/2015)':
+                value = value.split('\n')[0].strip().replace(u'\xa0', '')
+                result['annual_rates'] = value
 
-    # br.set_handle_equiv(True)
-    # br.set_handle_gzip(True)
-    # br.set_handle_redirect(True)
-    # br.set_handle_referer(True)
-    # br.set_handle_robots(False)
+            elif title == 'Land value:':
+                result['land_value'] = value
 
-    user_agent = "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36"
-    br.addheaders = [('User-agent', user_agent)]
+            elif title == 'Capital value:':
+                result['capital_value'] = value
 
-    br.open(result.url)
-    br.select_form('aspnetForm')
-    br.submit()
-    print br.response().read()
-    return br
+            elif title == 'Latest capital value':
+                result['latest_capital_value'] = value
+
+            elif title == 'Latest land value:':
+                result['latest_land_value'] = value
+
+            elif title == 'Latest improvement value:':
+                result['latest_improvement_value'] = value
+
+            elif title == 'Certificate of title number:':
+                result['certificate_of_title_number'] = value
+
+            elif title == 'Legal description:':
+                result['legal_description'] = value
+
+            elif title == 'Land area:':
+                result['land_area'] = value
+
+            elif title == 'Valuation as at date:':
+                day = value.split('\n')[0].strip()
+                month = value.split('\n')[1].strip()
+                year = value.split('\n')[2].strip()
+                result['valuation_date'] = "{} {} {}".format(
+                    day,
+                    month,
+                    year
+                )
+
+    return result
 
 address = '44 Queen Street Auckland'
 results = get_valuation_number(address)
@@ -153,7 +205,8 @@ results = get_valuation_number(address)
 for result in results:
     print "Address: {}".format(result['pa'])
     print "Valuation Number: {}".format(result['vr'])
-
-url = "http://www.aucklandcouncil.govt.nz/EN/ratesbuildingproperty/ratesvaluations/ratespropertysearch/Pages/yourrates.aspx"
-print url
-
+    valuation_data = valuation_search(address)
+    print "Land Value: {}".format(valuation_data['latest_land_value'])
+    print "Improvements: {}".format(valuation_data['latest_improvement_value'])
+    print "Capital Value: {}".format(valuation_data['latest_capital_value'])
+    print
