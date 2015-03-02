@@ -3,6 +3,7 @@ import json
 import urllib
 from time import sleep
 from pprint import pprint
+from collections import defaultdict
 
 import requests
 import mechanize
@@ -25,7 +26,8 @@ def address_search(address):
         'spatialRel': 'esriSpatialRelIntersects',
         'outFields': 'SEARCHADDRESS',
     }
-    url = "http://maps.aucklandcouncil.govt.nz/ArcGIS/rest/services/Applications/ACWebsite/MapServer/2/query"
+    url = "http://maps.aucklandcouncil.govt.nz/"
+    url += "ArcGIS/rest/services/Applications/ACWebsite/MapServer/2/query"
     json_data = requests.get(url, params=payload).text
     data = json.loads(json_data)
 
@@ -47,7 +49,8 @@ def address_search(address):
         'outSR': "2193",
     }
 
-    url = "http://maps.aucklandcouncil.govt.nz/ArcGIS/rest/services/Applications/ACWebsite/MapServer/3/query"
+    url = "http://maps.aucklandcouncil.govt.nz/"
+    url += "ArcGIS/rest/services/Applications/ACWebsite/MapServer/3/query"
     json_data = requests.get(url, params=payload).text
     data = json.loads(json_data)
 
@@ -113,6 +116,19 @@ def get_valuation_number(address):
 
 
 def valuation_search(address):
+    """ Fetch valuation data using selenium. Returns a dict containing:
+            assessment_number
+            annual_rates
+            land_value
+            capital_value
+            latest_capital_value
+            latest_land_value
+            latest_improvement_value
+            valuation_date
+            land_area
+            certificate_of_title_number
+            legal_description
+    """
     browser = webdriver.Chrome('./chromedriver')
 
     address_data = get_valuation_number(address)[0]
@@ -136,19 +152,7 @@ def valuation_search(address):
 
     soup = bs(data)
 
-    result = {
-        'assessment_number': None,
-        'annual_rates': None,
-        'land_value': None,
-        'capital_value': None,
-        'latest_capital_value': None,
-        'latest_land_value': None,
-        'latest_improvement_value': None,
-        'valuation_date': None,
-        'land_area': None,
-        'certificate_of_title_number': None,
-        'legal_description': None,
-    }
+    result = defaultdict(lambda: '')
 
     rows = soup.findAll('div', {"class": "summaryitem"})
     for row in rows:
