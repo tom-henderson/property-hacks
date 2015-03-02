@@ -113,7 +113,7 @@ def get_valuation_number(address):
 
 
 def valuation_search(address):
-    browser = webdriver.Chrome('/Users/tom/Documents/Github/property-hacks/chromedriver')
+    browser = webdriver.Chrome('./chromedriver')
 
     address_data = get_valuation_number(address)[0]
     url = "http://www.aucklandcouncil.govt.nz/"
